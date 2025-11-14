@@ -3,6 +3,18 @@
 import streamlit as st
 import random
 import sqlite3
+import hashlib # NEW: Library for secure hashing
+
+# --- SECURITY FUNCTIONS ---
+# NEW: Function to turn a plain password into a secure hash
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+# NEW: Function to check if a submitted password matches the stored hash
+def check_hashes(password, hashed_text):
+    if make_hashes(password) == hashed_text:
+        return True
+    return False
 
 # --- DATABASE SETUP ---
 def init_db():
@@ -17,13 +29,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-# CHANGED: Convert username to lowercase before adding to DB
 def add_user(username, password):
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
     try:
-        # Force username to be lowercase for consistency
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username.lower(), password))
+        # CHANGED: We now save the HASH, not the plain password
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
+                  (username.lower(), make_hashes(password)))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -31,15 +43,20 @@ def add_user(username, password):
     finally:
         conn.close()
 
-# CHANGED: Convert username to lowercase before checking
 def check_user(username, password):
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    # Force username to be lowercase for consistency
-    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username.lower(), password))
+    # CHANGED: We select the stored password (which is a hash) for this user
+    c.execute("SELECT password FROM users WHERE username = ?", (username.lower(),))
     data = c.fetchone()
     conn.close()
-    return data is not None
+    
+    if data:
+        # CHANGED: Compare the typed password's hash with the stored hash
+        stored_password_hash = data[0]
+        if check_hashes(password, stored_password_hash):
+            return True
+    return False
 
 init_db()
 
@@ -55,7 +72,6 @@ if 'logged_in' not in st.session_state:
 
 # --- TASK BANK ---
 TASK_BANK = [
-    # ... (task bank remains the same) ...
     {
         "type": "riddle",
         "question": "I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?",
