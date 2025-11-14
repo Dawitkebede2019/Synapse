@@ -4,7 +4,7 @@ import streamlit as st
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Unity Hub",
+    page_title="Synapse", # CHANGED: from "Unity Hub"
     page_icon="🚀",
     layout="wide"
 )
@@ -22,7 +22,7 @@ if 'users' not in st.session_state:
 
 def login_page():
     """Displays the login page."""
-    st.title("Welcome to Unity Hub")
+    st.title("Welcome to Synapse") # CHANGED: from "Unity Hub"
     st.subheader("Please log in to continue")
 
     with st.form("login_form"):
@@ -34,13 +34,13 @@ def login_page():
             if username in st.session_state.users and st.session_state.users[username] == password:
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
-                st.rerun() # CHANGED: from st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Invalid username or password")
     
     if st.button("Don't have an account? Sign Up"):
         st.session_state['page'] = 'signup'
-        st.rerun() # CHANGED: from st.experimental_rerun()
+        st.rerun()
 
 def signup_page():
     """Displays the signup page."""
@@ -61,7 +61,7 @@ def signup_page():
                         st.session_state.users[new_username] = new_password
                         st.success("Account created successfully! Please log in.")
                         st.session_state['page'] = 'login'
-                        st.rerun() # CHANGED: from st.experimental_rerun()
+                        st.rerun()
                 else:
                     st.error("Passwords do not match.")
             else:
@@ -77,7 +77,7 @@ def dashboard():
     col1, col2, col3 = st.columns(3)
     col1.metric("Active Tasks", "5", "1")
     col2.metric("Groups Joined", "3", "2")
-    col3.metric("Wallet Balance", "1,250 UC", "150")
+    col3.metric("Wallet Balance", "1,250 SC", "150") # SC = Synapse Coin
 
 def groups():
     st.title("Your Groups")
@@ -108,7 +108,7 @@ def wallet():
     st.write("Manage your digital currency, view transactions, and connect your bank cards.")
     st.warning("🔒 **Important:** This is a conceptual demo. Do not enter real financial information.")
     st.info("💡 **Next Step:** We can design an interface for sending/receiving currency and viewing transaction history.")
-    st.subheader("Balance: 1,250 Unity Coin (UC)")
+    st.subheader("Balance: 1,250 Synapse Coin (SC)")
     st.button("Send Currency")
     st.button("Receive Currency")
 
@@ -145,6 +145,6 @@ else:
     if st.sidebar.button("Logout"):
         st.session_state['logged_in'] = False
         st.session_state['page'] = 'login'
-        st.rerun() # CHANGED: from st.experimental_rerun()
+        st.rerun()
     page_to_display = page_options[selection]
     page_to_display()
