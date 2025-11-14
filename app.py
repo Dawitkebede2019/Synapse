@@ -1,35 +1,62 @@
 # app.py
 # app.py
 import streamlit as st
+import random # NEW: We need this to pick random tasks
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Synapse", # CHANGED: from "Unity Hub"
+    page_title="Synapse",
     page_icon="🚀",
     layout="wide"
 )
 
 # --- FAKE DATABASE & USER AUTHENTICATION ---
-# In a real app, you would use a database. For this demo, we'll use session state.
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
     st.session_state['username'] = ''
     st.session_state['page'] = 'login'
+    st.session_state['uc_balance'] = 100 # NEW: Starting UC balance for a new user
+    st.session_state['current_task'] = None # NEW: To hold the user's current task
 
-# A simple dictionary to act as our user database
 if 'users' not in st.session_state:
-    st.session_state['users'] = {"admin": "password"} # Example user
+    st.session_state['users'] = {"admin": "password"}
 
+# NEW: A bank of tasks for the app to generate
+TASK_BANK = [
+    {
+        "type": "riddle",
+        "question": "I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?",
+        "answer": "a map",
+        "reward": 50
+    },
+    {
+        "type": "logic",
+        "question": "What number comes next in the sequence? 2, 5, 11, 23, ___",
+        "answer": "47",
+        "reward": 75
+    },
+    {
+        "type": "creative",
+        "question": "Describe the color blue to someone who is blind.",
+        "answer": None,  # Creative tasks have no single correct answer
+        "reward": 100
+    },
+    {
+        "type": "pattern",
+        "question": "Look at the pattern: O, T, T, F, F, S, S, E, ___. What letter comes next?",
+        "answer": "n", # One, Two, Three, Four, Five, Six, Seven, Eight, Nine
+        "reward": 125
+    }
+]
+
+# --- LOGIN/SIGNUP PAGES (remain the same) ---
 def login_page():
-    """Displays the login page."""
-    st.title("Welcome to Synapse") # CHANGED: from "Unity Hub"
+    st.title("Welcome to Synapse")
     st.subheader("Please log in to continue")
-
     with st.form("login_form"):
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
-
         if submitted:
             if username in st.session_state.users and st.session_state.users[username] == password:
                 st.session_state['logged_in'] = True
@@ -37,26 +64,22 @@ def login_page():
                 st.rerun()
             else:
                 st.error("Invalid username or password")
-    
     if st.button("Don't have an account? Sign Up"):
         st.session_state['page'] = 'signup'
         st.rerun()
 
 def signup_page():
-    """Displays the signup page."""
     st.title("Create a New Account")
-    
     with st.form("signup_form"):
         new_username = st.text_input("Choose a Username")
         new_password = st.text_input("Choose a Password", type="password")
         confirm_password = st.text_input("Confirm Password", type="password")
         signup_submitted = st.form_submit_button("Sign Up")
-
         if signup_submitted:
             if new_username and new_password and confirm_password:
                 if new_password == confirm_password:
                     if new_username in st.session_state.users:
-                        st.error("Username already exists. Please choose another one.")
+                        st.error("Username already exists.")
                     else:
                         st.session_state.users[new_username] = new_password
                         st.success("Account created successfully! Please log in.")
@@ -67,22 +90,21 @@ def signup_page():
             else:
                 st.warning("Please fill out all fields.")
 
-# --- PAGE DEFINITIONS (These functions remain the same) ---
+# --- MAIN APP PAGES ---
 
 def dashboard():
     st.title(f"Welcome to your Dashboard, {st.session_state['username']}!")
     st.write("This is where you'll see an overview of your activity, tasks, and group updates.")
-    st.info("💡 **Next Step:** We can build this out to show key metrics, notifications, or recent activity.")
     
     col1, col2, col3 = st.columns(3)
-    col1.metric("Active Tasks", "5", "1")
-    col2.metric("Groups Joined", "3", "2")
-    col3.metric("Wallet Balance", "1,250 SC", "150") # SC = Synapse Coin
+    col1.metric("Active Tasks", "1", " ") # User always has one active task
+    col2.metric("Groups Joined", "3", " ")
+    # NEW: Display the live UC balance from session state
+    col3.metric("Wallet Balance", f"{st.session_state.uc_balance} UC", " ")
 
 def groups():
     st.title("Your Groups")
     st.write("Here you can find groups, join them, or recruit new members.")
-    st.info("💡 **Next Step:** We can add functionality to create a new group, list existing groups, and manage members.")
     st.header("My Groups")
     st.write("- Project Phoenix")
     st.write("- Marketing Team")
@@ -90,25 +112,55 @@ def groups():
     if st.button("Recruit New Member"):
         st.success("Recruitment link copied to clipboard!")
 
+# NEW: The completely rebuilt, interactive Tasks page!
 def tasks():
-    st.title("Task Management")
-    st.write("Manage your individual and group tasks here.")
-    st.info("💡 **Next Step:** We can build a to-do list where you can add, edit, and check off tasks.")
-    task = st.text_input("Add a new task:")
-    if st.button("Add Task"):
-        if task: st.write(f"Task '{task}' added!")
-        else: st.warning("Please enter a task.")
-    st.header("Current Tasks")
-    st.checkbox("Design the new dashboard UI")
-    st.checkbox("Upload final project report")
-    st.checkbox("Contact new recruits")
+    st.title("Complete a Task, Earn UC")
+
+    # Assign a new task if the user doesn't have one
+    if not st.session_state.current_task:
+        st.session_state.current_task = random.choice(TASK_BANK)
+    
+    task = st.session_state.current_task
+    
+    st.subheader(f"Your Task (Reward: {task['reward']} UC)")
+    st.info(task['question'])
+
+    with st.form("task_form"):
+        user_answer = st.text_area("Your Answer")
+        submitted = st.form_submit_button("Submit Answer")
+
+        if submitted:
+            if user_answer:
+                is_correct = False
+                # For creative tasks, any answer is "correct"
+                if task['type'] == 'creative':
+                    is_correct = True
+                # For other tasks, check the answer (case-insensitive)
+                elif user_answer.strip().lower() == task['answer'].lower():
+                    is_correct = True
+
+                if is_correct:
+                    reward = task['reward']
+                    st.session_state.uc_balance += reward
+                    st.success(f"Correct! You've earned {reward} UC. Your new balance is {st.session_state.uc_balance} UC.")
+                    st.balloons()
+                    # Clear the current task so a new one is assigned
+                    st.session_state.current_task = None
+                else:
+                    st.error("That's not quite right. Try again, or get a new task.")
+                    # Optional: Add a button to skip the task
+                    # if st.button("Get New Task"):
+                    #     st.session_state.current_task = None
+                    #     st.rerun()
+            else:
+                st.warning("Please submit an answer.")
+
 
 def wallet():
     st.title("Digital Wallet")
     st.write("Manage your digital currency, view transactions, and connect your bank cards.")
-    st.warning("🔒 **Important:** This is a conceptual demo. Do not enter real financial information.")
-    st.info("💡 **Next Step:** We can design an interface for sending/receiving currency and viewing transaction history.")
-    st.subheader("Balance: 1,250 Synapse Coin (SC)")
+    # NEW: Display the live UC balance and changed name back to UC
+    st.header(f"Current Balance: {st.session_state.uc_balance} UC")
     st.button("Send Currency")
     st.button("Receive Currency")
 
@@ -116,7 +168,6 @@ def profile():
     st.title("Your Profile & Verification")
     st.write("Upload your ID and manage your personal information.")
     st.warning("🔒 **Important:** This is a conceptual demo. Do not upload real documents.")
-    st.info("💡 **Next Step:** We can add file uploaders for documents and forms for personal details.")
     st.subheader("Verification Status: Not Verified")
     uploaded_id = st.file_uploader("Upload your ID (e.g., Driver's License)")
     if uploaded_id: st.success("ID uploaded successfully! Awaiting verification.")
@@ -124,14 +175,12 @@ def profile():
 
 
 # --- MAIN APP LOGIC ---
-
 if not st.session_state['logged_in']:
     if st.session_state['page'] == 'login':
         login_page()
     elif st.session_state['page'] == 'signup':
         signup_page()
 else:
-    # --- SIDEBAR NAVIGATION ---
     st.sidebar.title(f"Hello, {st.session_state['username']}!")
     st.sidebar.markdown("---")
     page_options = {
