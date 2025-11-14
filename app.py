@@ -1,7 +1,50 @@
 # app.py
 # app.py
 import streamlit as st
-import random # NEW: We need this to pick random tasks
+import random
+import sqlite3 # NEW: Import the SQLite library
+
+# --- DATABASE SETUP ---
+# NEW: Function to initialize the database and create the users table
+def init_db():
+    conn = sqlite3.connect('users.db') # Creates or connects to a file named users.db
+    c = conn.cursor()
+    # Create a table to store users if it doesn't exist already
+    # USERNAME is a UNIQUE key, meaning no two users can have the same username
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT UNIQUE,
+            password TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# NEW: Function to add a user to the database
+def add_user(username, password):
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    try:
+        # Use a parameterized query to prevent SQL injection (security best practice)
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError: # This error occurs if the username already exists
+        return False
+    finally:
+        conn.close()
+
+# NEW: Function to check if a user's credentials are valid
+def check_user(username, password):
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
+    data = c.fetchone() # Fetches one result
+    conn.close()
+    return data is not None # Returns True if a user was found, False otherwise
+
+# --- Run the database initialization once ---
+init_db()
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -10,18 +53,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- FAKE DATABASE & USER AUTHENTICATION ---
+# --- SESSION STATE INITIALIZATION ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
     st.session_state['username'] = ''
     st.session_state['page'] = 'login'
-    st.session_state['uc_balance'] = 100 # NEW: Starting UC balance for a new user
-    st.session_state['current_task'] = None # NEW: To hold the user's current task
+    st.session_state['uc_balance'] = 100
+    st.session_state['current_task'] = None
 
-if 'users' not in st.session_state:
-    st.session_state['users'] = {"admin": "password"}
+# We no longer need the session state for users, as it's now in the DB
+# if 'users' not in st.session_state:
+#     st.session_state['users'] = {"admin": "password"}
 
-# NEW: A bank of tasks for the app to generate
 TASK_BANK = [
     {
         "type": "riddle",
@@ -38,18 +81,18 @@ TASK_BANK = [
     {
         "type": "creative",
         "question": "Describe the color blue to someone who is blind.",
-        "answer": None,  # Creative tasks have no single correct answer
+        "answer": None,
         "reward": 100
     },
     {
         "type": "pattern",
         "question": "Look at the pattern: O, T, T, F, F, S, S, E, ___. What letter comes next?",
-        "answer": "n", # One, Two, Three, Four, Five, Six, Seven, Eight, Nine
+        "answer": "n",
         "reward": 125
     }
 ]
 
-# --- LOGIN/SIGNUP PAGES (remain the same) ---
+# --- LOGIN/SIGNUP PAGES (Now using the database) ---
 def login_page():
     st.title("Welcome to Synapse")
     st.subheader("Please log in to continue")
@@ -58,7 +101,8 @@ def login_page():
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
         if submitted:
-            if username in st.session_state.users and st.session_state.users[username] == password:
+            # CHANGED: We now call our database function
+            if check_user(username, password):
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
                 st.rerun()
@@ -78,28 +122,25 @@ def signup_page():
         if signup_submitted:
             if new_username and new_password and confirm_password:
                 if new_password == confirm_password:
-                    if new_username in st.session_state.users:
-                        st.error("Username already exists.")
-                    else:
-                        st.session_state.users[new_username] = new_password
+                    # CHANGED: We now call our database function to add the user
+                    if add_user(new_username, new_password):
                         st.success("Account created successfully! Please log in.")
                         st.session_state['page'] = 'login'
                         st.rerun()
+                    else:
+                        st.error("Username already exists. Please choose another one.")
                 else:
                     st.error("Passwords do not match.")
             else:
                 st.warning("Please fill out all fields.")
 
-# --- MAIN APP PAGES ---
-
+# --- MAIN APP PAGES (These remain mostly the same) ---
 def dashboard():
     st.title(f"Welcome to your Dashboard, {st.session_state['username']}!")
     st.write("This is where you'll see an overview of your activity, tasks, and group updates.")
-    
     col1, col2, col3 = st.columns(3)
-    col1.metric("Active Tasks", "1", " ") # User always has one active task
+    col1.metric("Active Tasks", "1", " ")
     col2.metric("Groups Joined", "3", " ")
-    # NEW: Display the live UC balance from session state
     col3.metric("Wallet Balance", f"{st.session_state.uc_balance} UC", " ")
 
 def groups():
@@ -112,54 +153,35 @@ def groups():
     if st.button("Recruit New Member"):
         st.success("Recruitment link copied to clipboard!")
 
-# NEW: The completely rebuilt, interactive Tasks page!
 def tasks():
     st.title("Complete a Task, Earn UC")
-
-    # Assign a new task if the user doesn't have one
     if not st.session_state.current_task:
         st.session_state.current_task = random.choice(TASK_BANK)
-    
     task = st.session_state.current_task
-    
     st.subheader(f"Your Task (Reward: {task['reward']} UC)")
     st.info(task['question'])
-
     with st.form("task_form"):
         user_answer = st.text_area("Your Answer")
         submitted = st.form_submit_button("Submit Answer")
-
         if submitted:
             if user_answer:
                 is_correct = False
-                # For creative tasks, any answer is "correct"
-                if task['type'] == 'creative':
+                if task['type'] == 'creative' or user_answer.strip().lower() == task.get('answer', '').lower():
                     is_correct = True
-                # For other tasks, check the answer (case-insensitive)
-                elif user_answer.strip().lower() == task['answer'].lower():
-                    is_correct = True
-
                 if is_correct:
                     reward = task['reward']
                     st.session_state.uc_balance += reward
                     st.success(f"Correct! You've earned {reward} UC. Your new balance is {st.session_state.uc_balance} UC.")
                     st.balloons()
-                    # Clear the current task so a new one is assigned
                     st.session_state.current_task = None
                 else:
-                    st.error("That's not quite right. Try again, or get a new task.")
-                    # Optional: Add a button to skip the task
-                    # if st.button("Get New Task"):
-                    #     st.session_state.current_task = None
-                    #     st.rerun()
+                    st.error("That's not quite right. Try again!")
             else:
                 st.warning("Please submit an answer.")
-
 
 def wallet():
     st.title("Digital Wallet")
     st.write("Manage your digital currency, view transactions, and connect your bank cards.")
-    # NEW: Display the live UC balance and changed name back to UC
     st.header(f"Current Balance: {st.session_state.uc_balance} UC")
     st.button("Send Currency")
     st.button("Receive Currency")
@@ -173,7 +195,6 @@ def profile():
     if uploaded_id: st.success("ID uploaded successfully! Awaiting verification.")
     st.text_input("Bank Card Number", placeholder="**** **** **** 1234")
 
-
 # --- MAIN APP LOGIC ---
 if not st.session_state['logged_in']:
     if st.session_state['page'] == 'login':
@@ -183,13 +204,7 @@ if not st.session_state['logged_in']:
 else:
     st.sidebar.title(f"Hello, {st.session_state['username']}!")
     st.sidebar.markdown("---")
-    page_options = {
-        "Dashboard": dashboard,
-        "Groups": groups,
-        "Tasks": tasks,
-        "Wallet": wallet,
-        "Profile & Verification": profile
-    }
+    page_options = { "Dashboard": dashboard, "Groups": groups, "Tasks": tasks, "Wallet": wallet, "Profile & Verification": profile }
     selection = st.sidebar.radio("Go to", list(page_options.keys()))
     if st.sidebar.button("Logout"):
         st.session_state['logged_in'] = False
