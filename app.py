@@ -2,15 +2,12 @@
 # app.py
 import streamlit as st
 import random
-import sqlite3 # NEW: Import the SQLite library
+import sqlite3
 
 # --- DATABASE SETUP ---
-# NEW: Function to initialize the database and create the users table
 def init_db():
-    conn = sqlite3.connect('users.db') # Creates or connects to a file named users.db
+    conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    # Create a table to store users if it doesn't exist already
-    # USERNAME is a UNIQUE key, meaning no two users can have the same username
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT UNIQUE,
@@ -20,52 +17,45 @@ def init_db():
     conn.commit()
     conn.close()
 
-# NEW: Function to add a user to the database
+# CHANGED: Convert username to lowercase before adding to DB
 def add_user(username, password):
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
     try:
-        # Use a parameterized query to prevent SQL injection (security best practice)
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        # Force username to be lowercase for consistency
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username.lower(), password))
         conn.commit()
         return True
-    except sqlite3.IntegrityError: # This error occurs if the username already exists
+    except sqlite3.IntegrityError:
         return False
     finally:
         conn.close()
 
-# NEW: Function to check if a user's credentials are valid
+# CHANGED: Convert username to lowercase before checking
 def check_user(username, password):
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-    data = c.fetchone() # Fetches one result
+    # Force username to be lowercase for consistency
+    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username.lower(), password))
+    data = c.fetchone()
     conn.close()
-    return data is not None # Returns True if a user was found, False otherwise
+    return data is not None
 
-# --- Run the database initialization once ---
 init_db()
 
 # --- PAGE CONFIG ---
-st.set_page_config(
-    page_title="Synapse",
-    page_icon="🚀",
-    layout="wide"
-)
+st.set_page_config(page_title="Synapse", page_icon="🚀", layout="wide")
 
 # --- SESSION STATE INITIALIZATION ---
 if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
-    st.session_state['username'] = ''
-    st.session_state['page'] = 'login'
-    st.session_state['uc_balance'] = 100
-    st.session_state['current_task'] = None
+    st.session_state.update({
+        'logged_in': False, 'username': '', 'page': 'login',
+        'uc_balance': 100, 'current_task': None
+    })
 
-# We no longer need the session state for users, as it's now in the DB
-# if 'users' not in st.session_state:
-#     st.session_state['users'] = {"admin": "password"}
-
+# --- TASK BANK ---
 TASK_BANK = [
+    # ... (task bank remains the same) ...
     {
         "type": "riddle",
         "question": "I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?",
@@ -92,7 +82,7 @@ TASK_BANK = [
     }
 ]
 
-# --- LOGIN/SIGNUP PAGES (Now using the database) ---
+# --- LOGIN/SIGNUP PAGES ---
 def login_page():
     st.title("Welcome to Synapse")
     st.subheader("Please log in to continue")
@@ -101,15 +91,14 @@ def login_page():
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
         if submitted:
-            # CHANGED: We now call our database function
             if check_user(username, password):
-                st.session_state['logged_in'] = True
-                st.session_state['username'] = username
+                st.session_state.logged_in = True
+                st.session_state.username = username
                 st.rerun()
             else:
                 st.error("Invalid username or password")
     if st.button("Don't have an account? Sign Up"):
-        st.session_state['page'] = 'signup'
+        st.session_state.page = 'signup'
         st.rerun()
 
 def signup_page():
@@ -122,10 +111,9 @@ def signup_page():
         if signup_submitted:
             if new_username and new_password and confirm_password:
                 if new_password == confirm_password:
-                    # CHANGED: We now call our database function to add the user
                     if add_user(new_username, new_password):
                         st.success("Account created successfully! Please log in.")
-                        st.session_state['page'] = 'login'
+                        st.session_state.page = 'login'
                         st.rerun()
                     else:
                         st.error("Username already exists. Please choose another one.")
@@ -134,9 +122,9 @@ def signup_page():
             else:
                 st.warning("Please fill out all fields.")
 
-# --- MAIN APP PAGES (These remain mostly the same) ---
+# --- MAIN APP PAGES ---
 def dashboard():
-    st.title(f"Welcome to your Dashboard, {st.session_state['username']}!")
+    st.title(f"Welcome to your Dashboard, {st.session_state.username}!")
     st.write("This is where you'll see an overview of your activity, tasks, and group updates.")
     col1, col2, col3 = st.columns(3)
     col1.metric("Active Tasks", "1", " ")
@@ -196,19 +184,19 @@ def profile():
     st.text_input("Bank Card Number", placeholder="**** **** **** 1234")
 
 # --- MAIN APP LOGIC ---
-if not st.session_state['logged_in']:
-    if st.session_state['page'] == 'login':
+if not st.session_state.logged_in:
+    if st.session_state.page == 'login':
         login_page()
-    elif st.session_state['page'] == 'signup':
+    elif st.session_state.page == 'signup':
         signup_page()
 else:
-    st.sidebar.title(f"Hello, {st.session_state['username']}!")
+    st.sidebar.title(f"Hello, {st.session_state.username}!")
     st.sidebar.markdown("---")
     page_options = { "Dashboard": dashboard, "Groups": groups, "Tasks": tasks, "Wallet": wallet, "Profile & Verification": profile }
     selection = st.sidebar.radio("Go to", list(page_options.keys()))
     if st.sidebar.button("Logout"):
-        st.session_state['logged_in'] = False
-        st.session_state['page'] = 'login'
+        st.session_state.logged_in = False
+        st.session_state.page = 'login'
         st.rerun()
     page_to_display = page_options[selection]
     page_to_display()
