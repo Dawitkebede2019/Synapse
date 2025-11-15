@@ -154,7 +154,7 @@ def market_page():
     for i, item in enumerate(MARKET_ITEMS):
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.image(item["image"], use_container_width=True) # Keeping this for now, will fix if warning persists
+            st.image(item["image"], width=200) # FIXED
         with col2:
             st.subheader(item["name"])
             st.write(f"**Cost: {item['cost']} UC**")
@@ -176,7 +176,7 @@ def rewards_hub_page():
     for i, item in enumerate(REWARDS_BANK):
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.image(item["image"], use_container_width=True) # Keeping this for now
+            st.image(item["image"], width=200) # FIXED
         with col2:
             st.subheader(item["name"])
             st.write(f"**Cost: {item['cost']} UC**")
@@ -207,7 +207,7 @@ def profile():
         st.success("ID uploaded successfully!")
     st.text_input("Bank Card Number", placeholder="**** **** **** 1234")
 
-# --- MAIN APP LOGIC (FIXED) ---
+# --- MAIN APP LOGIC ---
 if not st.session_state.logged_in:
     if st.session_state.page == 'login':
         login_page()
@@ -220,7 +220,7 @@ else:
     selection = st.sidebar.radio("Go to", list(page_options.keys()))
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
-        st.session_state.page = 'login' # Go back to login page on logout
+        st.session_state.page = 'login'
         st.rerun()
     
     page_to_display = page_options[selection]
