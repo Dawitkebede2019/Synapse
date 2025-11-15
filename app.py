@@ -20,6 +20,7 @@ def init_db():
     conn.close()
 
 def add_user(username, password):
+    # ... (no change)
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
     try:
@@ -32,6 +33,7 @@ def add_user(username, password):
         conn.close()
 
 def check_user(username, password):
+    # ... (no change)
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
     c.execute("SELECT password FROM users WHERE username = ?", (username.lower(),))
@@ -56,31 +58,20 @@ if 'logged_in' not in st.session_state:
 # --- DATA BANKS ---
 TASK_BANK = [
     {"type": "riddle", "question": "What has an eye, but cannot see?", "answer": "a needle", "reward": 50},
-    {"type": "logic", "question": "A man is looking at a portrait. He replies, 'Brothers and sisters I have none, but that man's father is my father's son.' Who is in the portrait?", "answer": "his son", "reward": 100}
+    {"type": "logic", "question": "A man looks at a portrait and says, 'Brothers and sisters I have none, but that man's father is my father's son.' Who is in the portrait?", "answer": "his son", "reward": 100}
 ]
 REWARDS_BANK = [
     {"name": "20% Off at TechGadgets.com", "cost": 500, "description": "A discount on cool gadgets.", "reward_type": "Affiliate Link", "reward_content": "https://techgadgets.com/discount/SYNAPSE20", "image": "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=500"},
     {"name": "$10 Gift Card for 'The Coffee Stop'", "cost": 1000, "description": "Treat yourself to a coffee.", "reward_type": "Gift Card Code", "reward_content": "TCS-GIFT-1234-5678", "image": "https://images.unsplash.com/photo-1511920183353-8b2c42d5d8a9?w=500"}
 ]
 MARKET_ITEMS = [
-    {
-        "name": "Synapse Official T-Shirt",
-        "cost": 2000,
-        "description": "High-quality, comfortable cotton t-shirt with the official Synapse logo. Show your support!",
-        "image": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500",
-        "affiliate_link": "#"
-    },
-    {
-        "name": "Premium Brain-Food Snack Box",
-        "cost": 3500,
-        "description": "A curated box of healthy snacks designed to boost focus and mental clarity. Perfect for task-solving marathons.",
-        "image": "https://images.unsplash.com/photo-1588644520707-03a1fe343869?w=500",
-        "affiliate_link": "#"
-    }
+    {"name": "Synapse Official T-Shirt", "cost": 2000, "description": "High-quality cotton t-shirt with the official Synapse logo.", "image": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500", "affiliate_link": "#"},
+    {"name": "Premium Brain-Food Snack Box", "cost": 3500, "description": "A curated box of healthy snacks to boost focus.", "image": "https://images.unsplash.com/photo-1588644520707-03a1fe343869?w=500", "affiliate_link": "#"}
 ]
 
 # --- LOGIN/SIGNUP PAGES ---
 def login_page():
+    # ... (no change)
     st.title("Welcome to Synapse")
     st.subheader("Please log in to continue")
     with st.form("login_form"):
@@ -99,6 +90,7 @@ def login_page():
         st.rerun()
 
 def signup_page():
+    # ... (no change)
     st.title("Create a New Account")
     with st.form("signup_form"):
         new_username = st.text_input("Choose a Username")
@@ -113,7 +105,7 @@ def signup_page():
                         st.session_state.page = 'login'
                         st.rerun()
                     else:
-                        st.error("Username already exists. Please choose another one.")
+                        st.error("Username already exists.")
                 else:
                     st.error("Passwords do not match.")
             else:
@@ -121,6 +113,7 @@ def signup_page():
 
 # --- MAIN APP PAGES ---
 def dashboard():
+    # ... (no change)
     st.title(f"Welcome to your Dashboard, {st.session_state.username}!")
     st.write("This is where you'll see an overview of your activity.")
     col1, col2, col3 = st.columns(3)
@@ -129,6 +122,7 @@ def dashboard():
     col3.metric("Wallet Balance", f"{st.session_state.uc_balance} UC")
 
 def tasks():
+    # ... (no change)
     st.title("Complete a Task, Earn UC")
     if not st.session_state.current_task:
         st.session_state.current_task = random.choice(TASK_BANK)
@@ -157,7 +151,8 @@ def market_page():
     for i, item in enumerate(MARKET_ITEMS):
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.image(item["image"], use_column_width=True)
+            # CHANGED: from use_column_width to use_container_width
+            st.image(item["image"], use_container_width=True)
         with col2:
             st.subheader(item["name"])
             st.write(f"**Cost: {item['cost']} UC**")
@@ -166,7 +161,7 @@ def market_page():
                 if st.session_state.uc_balance >= item['cost']:
                     st.session_state.uc_balance -= item['cost']
                     st.success(f"Purchase successful! Your order for '{item['name']}' has been placed.")
-                    st.info("You will receive a confirmation email with shipping details shortly. (This is a simulation).")
+                    st.info("This is a simulation. No real order has been made.")
                     st.rerun()
                 else:
                     st.error("You do not have enough UC to buy this item.")
@@ -181,7 +176,8 @@ def rewards_hub_page():
     for i, item in enumerate(REWARDS_BANK):
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.image(item["image"], use_column_width=True)
+            # CHANGED: from use_column_width to use_container_width
+            st.image(item["image"], use_container_width=True)
         with col2:
             st.subheader(item["name"])
             st.write(f"**Cost: {item['cost']} UC**")
@@ -197,12 +193,14 @@ def rewards_hub_page():
         st.markdown("---")
 
 def wallet():
+    # ... (no change)
     st.title("Digital Wallet")
     st.header(f"Current Balance: {st.session_state.uc_balance} UC")
     st.button("Send Currency")
     st.button("Receive Currency")
 
 def profile():
+    # ... (no change)
     st.title("Your Profile & Verification")
     st.write("Upload your ID and manage your personal information.")
     st.subheader("Verification Status: Not Verified")
