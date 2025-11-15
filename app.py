@@ -3,14 +3,12 @@
 import streamlit as st
 import random
 import sqlite3
-import hashlib # NEW: Library for secure hashing
+import hashlib
 
 # --- SECURITY FUNCTIONS ---
-# NEW: Function to turn a plain password into a secure hash
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
-# NEW: Function to check if a submitted password matches the stored hash
 def check_hashes(password, hashed_text):
     if make_hashes(password) == hashed_text:
         return True
@@ -33,9 +31,7 @@ def add_user(username, password):
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
     try:
-        # CHANGED: We now save the HASH, not the plain password
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
-                  (username.lower(), make_hashes(password)))
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username.lower(), make_hashes(password)))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -46,16 +42,11 @@ def add_user(username, password):
 def check_user(username, password):
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    # CHANGED: We select the stored password (which is a hash) for this user
     c.execute("SELECT password FROM users WHERE username = ?", (username.lower(),))
     data = c.fetchone()
     conn.close()
-    
     if data:
-        # CHANGED: Compare the typed password's hash with the stored hash
-        stored_password_hash = data[0]
-        if check_hashes(password, stored_password_hash):
-            return True
+        return check_hashes(password, data[0])
     return False
 
 init_db()
@@ -67,10 +58,10 @@ st.set_page_config(page_title="Synapse", page_icon="🚀", layout="wide")
 if 'logged_in' not in st.session_state:
     st.session_state.update({
         'logged_in': False, 'username': '', 'page': 'login',
-        'uc_balance': 100, 'current_task': None
+        'uc_balance': 1000, 'current_task': None # Start with 1000 UC to make testing the store easier
     })
 
-# --- TASK BANK ---
+# --- DATA BANKS ---
 TASK_BANK = [
     {
         "type": "riddle",
@@ -83,18 +74,32 @@ TASK_BANK = [
         "question": "What number comes next in the sequence? 2, 5, 11, 23, ___",
         "answer": "47",
         "reward": 75
+    }
+]
+REWARDS_BANK = [
+    {
+        "name": "1-Month Streaming Service Subscription",
+        "cost": 1500,
+        "description": "Enjoy a month of ad-free movies and shows on your favorite platform.",
+        "reward_type": "Discount Code",
+        "reward_content": "STREAM2024-XYZ",
+        "image": "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=500"
     },
     {
-        "type": "creative",
-        "question": "Describe the color blue to someone who is blind.",
-        "answer": None,
-        "reward": 100
+        "name": "20% Off at TechGadgets.com",
+        "cost": 500,
+        "description": "Get a 20% discount on your next purchase of cool gadgets and electronics.",
+        "reward_type": "Affiliate Link",
+        "reward_content": "https://techgadgets.com/discount/SYNAPSE20",
+        "image": "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=500"
     },
     {
-        "type": "pattern",
-        "question": "Look at the pattern: O, T, T, F, F, S, S, E, ___. What letter comes next?",
-        "answer": "n",
-        "reward": 125
+        "name": "$10 Gift Card for 'The Coffee Stop'",
+        "cost": 1000,
+        "description": "Treat yourself to your favorite coffee or snack at The Coffee Stop.",
+        "reward_type": "Gift Card Code",
+        "reward_content": "TCS-GIFT-1234-5678",
+        "image": "https://images.unsplash.com/photo-1511920183353-8b2c42d5d8a9?w=500"
     }
 ]
 
@@ -143,7 +148,7 @@ def dashboard():
     st.title(f"Welcome to your Dashboard, {st.session_state.username}!")
     st.write("This is where you'll see an overview of your activity, tasks, and group updates.")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Active Tasks", "1", " ")
+    col1.metric("Active Tasks", "1" if st.session_state.current_task else "0", " ")
     col2.metric("Groups Joined", "3", " ")
     col3.metric("Wallet Balance", f"{st.session_state.uc_balance} UC", " ")
 
@@ -152,8 +157,6 @@ def groups():
     st.write("Here you can find groups, join them, or recruit new members.")
     st.header("My Groups")
     st.write("- Project Phoenix")
-    st.write("- Marketing Team")
-    st.write("- Weekend Hackers")
     if st.button("Recruit New Member"):
         st.success("Recruitment link copied to clipboard!")
 
@@ -168,24 +171,41 @@ def tasks():
         user_answer = st.text_area("Your Answer")
         submitted = st.form_submit_button("Submit Answer")
         if submitted:
-            if user_answer:
-                is_correct = False
-                if task['type'] == 'creative' or user_answer.strip().lower() == task.get('answer', '').lower():
-                    is_correct = True
-                if is_correct:
-                    reward = task['reward']
-                    st.session_state.uc_balance += reward
-                    st.success(f"Correct! You've earned {reward} UC. Your new balance is {st.session_state.uc_balance} UC.")
-                    st.balloons()
-                    st.session_state.current_task = None
-                else:
-                    st.error("That's not quite right. Try again!")
+            if user_answer.strip().lower() == task.get('answer', '').lower():
+                reward = task['reward']
+                st.session_state.uc_balance += reward
+                st.success(f"Correct! You've earned {reward} UC.")
+                st.balloons()
+                st.session_state.current_task = None
             else:
-                st.warning("Please submit an answer.")
+                st.error("That's not quite right. Try again!")
+
+def store_page():
+    st.title("🎁 Rewards Store")
+    st.write("Use your earned UC to redeem exclusive rewards and discounts!")
+    st.info(f"Your current balance: **{st.session_state.uc_balance} UC**")
+    st.markdown("---")
+
+    for i, item in enumerate(REWARDS_BANK):
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.image(item["image"], use_column_width=True)
+        with col2:
+            st.subheader(item["name"])
+            st.write(f"**Cost: {item['cost']} UC**")
+            st.write(item["description"])
+            if st.button(f"Redeem Now", key=f"redeem_{i}"):
+                if st.session_state.uc_balance >= item['cost']:
+                    st.session_state.uc_balance -= item['cost']
+                    st.success(f"Success! You redeemed '{item['name']}'.")
+                    st.info(f"Your {item['reward_type']}: **{item['reward_content']}**")
+                    st.rerun()
+                else:
+                    st.error("You do not have enough UC to redeem this item.")
+        st.markdown("---")
 
 def wallet():
     st.title("Digital Wallet")
-    st.write("Manage your digital currency, view transactions, and connect your bank cards.")
     st.header(f"Current Balance: {st.session_state.uc_balance} UC")
     st.button("Send Currency")
     st.button("Receive Currency")
@@ -193,11 +213,8 @@ def wallet():
 def profile():
     st.title("Your Profile & Verification")
     st.write("Upload your ID and manage your personal information.")
-    st.warning("🔒 **Important:** This is a conceptual demo. Do not upload real documents.")
     st.subheader("Verification Status: Not Verified")
-    uploaded_id = st.file_uploader("Upload your ID (e.g., Driver's License)")
-    if uploaded_id: st.success("ID uploaded successfully! Awaiting verification.")
-    st.text_input("Bank Card Number", placeholder="**** **** **** 1234")
+    # ... rest of profile code ...
 
 # --- MAIN APP LOGIC ---
 if not st.session_state.logged_in:
@@ -208,7 +225,14 @@ if not st.session_state.logged_in:
 else:
     st.sidebar.title(f"Hello, {st.session_state.username}!")
     st.sidebar.markdown("---")
-    page_options = { "Dashboard": dashboard, "Groups": groups, "Tasks": tasks, "Wallet": wallet, "Profile & Verification": profile }
+    page_options = {
+        "Dashboard": dashboard,
+        "Groups": groups,
+        "Tasks": tasks,
+        "Store": store_page,
+        "Wallet": wallet,
+        "Profile & Verification": profile
+    }
     selection = st.sidebar.radio("Go to", list(page_options.keys()))
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
