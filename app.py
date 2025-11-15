@@ -5,25 +5,17 @@ import random
 import sqlite3
 import hashlib
 
-# --- SECURITY FUNCTIONS ---
+# --- SECURITY & DATABASE FUNCTIONS ---
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
 def check_hashes(password, hashed_text):
-    if make_hashes(password) == hashed_text:
-        return True
-    return False
+    return make_hashes(password) == hashed_text
 
-# --- DATABASE SETUP ---
 def init_db():
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT UNIQUE,
-            password TEXT
-        )
-    ''')
+    c.execute('CREATE TABLE IF NOT EXISTS users (username TEXT UNIQUE, password TEXT)')
     conn.commit()
     conn.close()
 
@@ -58,48 +50,32 @@ st.set_page_config(page_title="Synapse", page_icon="🚀", layout="wide")
 if 'logged_in' not in st.session_state:
     st.session_state.update({
         'logged_in': False, 'username': '', 'page': 'login',
-        'uc_balance': 1000, 'current_task': None # Start with 1000 UC to make testing the store easier
+        'uc_balance': 2500, 'current_task': None
     })
 
 # --- DATA BANKS ---
 TASK_BANK = [
-    {
-        "type": "riddle",
-        "question": "I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?",
-        "answer": "a map",
-        "reward": 50
-    },
-    {
-        "type": "logic",
-        "question": "What number comes next in the sequence? 2, 5, 11, 23, ___",
-        "answer": "47",
-        "reward": 75
-    }
+    {"type": "riddle", "question": "What has an eye, but cannot see?", "answer": "a needle", "reward": 50},
+    {"type": "logic", "question": "A man is looking at a portrait. He replies, 'Brothers and sisters I have none, but that man's father is my father's son.' Who is in the portrait?", "answer": "his son", "reward": 100}
 ]
 REWARDS_BANK = [
+    {"name": "20% Off at TechGadgets.com", "cost": 500, "description": "A discount on cool gadgets.", "reward_type": "Affiliate Link", "reward_content": "https://techgadgets.com/discount/SYNAPSE20", "image": "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=500"},
+    {"name": "$10 Gift Card for 'The Coffee Stop'", "cost": 1000, "description": "Treat yourself to a coffee.", "reward_type": "Gift Card Code", "reward_content": "TCS-GIFT-1234-5678", "image": "https://images.unsplash.com/photo-1511920183353-8b2c42d5d8a9?w=500"}
+]
+MARKET_ITEMS = [
     {
-        "name": "1-Month Streaming Service Subscription",
-        "cost": 1500,
-        "description": "Enjoy a month of ad-free movies and shows on your favorite platform.",
-        "reward_type": "Discount Code",
-        "reward_content": "STREAM2024-XYZ",
-        "image": "https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=500"
+        "name": "Synapse Official T-Shirt",
+        "cost": 2000,
+        "description": "High-quality, comfortable cotton t-shirt with the official Synapse logo. Show your support!",
+        "image": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500",
+        "affiliate_link": "#"
     },
     {
-        "name": "20% Off at TechGadgets.com",
-        "cost": 500,
-        "description": "Get a 20% discount on your next purchase of cool gadgets and electronics.",
-        "reward_type": "Affiliate Link",
-        "reward_content": "https://techgadgets.com/discount/SYNAPSE20",
-        "image": "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=500"
-    },
-    {
-        "name": "$10 Gift Card for 'The Coffee Stop'",
-        "cost": 1000,
-        "description": "Treat yourself to your favorite coffee or snack at The Coffee Stop.",
-        "reward_type": "Gift Card Code",
-        "reward_content": "TCS-GIFT-1234-5678",
-        "image": "https://images.unsplash.com/photo-1511920183353-8b2c42d5d8a9?w=500"
+        "name": "Premium Brain-Food Snack Box",
+        "cost": 3500,
+        "description": "A curated box of healthy snacks designed to boost focus and mental clarity. Perfect for task-solving marathons.",
+        "image": "https://images.unsplash.com/photo-1588644520707-03a1fe343869?w=500",
+        "affiliate_link": "#"
     }
 ]
 
@@ -146,19 +122,11 @@ def signup_page():
 # --- MAIN APP PAGES ---
 def dashboard():
     st.title(f"Welcome to your Dashboard, {st.session_state.username}!")
-    st.write("This is where you'll see an overview of your activity, tasks, and group updates.")
+    st.write("This is where you'll see an overview of your activity.")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Active Tasks", "1" if st.session_state.current_task else "0", " ")
-    col2.metric("Groups Joined", "3", " ")
-    col3.metric("Wallet Balance", f"{st.session_state.uc_balance} UC", " ")
-
-def groups():
-    st.title("Your Groups")
-    st.write("Here you can find groups, join them, or recruit new members.")
-    st.header("My Groups")
-    st.write("- Project Phoenix")
-    if st.button("Recruit New Member"):
-        st.success("Recruitment link copied to clipboard!")
+    col1.metric("Active Tasks", "1" if st.session_state.current_task else "0")
+    col2.metric("Groups Joined", "3")
+    col3.metric("Wallet Balance", f"{st.session_state.uc_balance} UC")
 
 def tasks():
     st.title("Complete a Task, Earn UC")
@@ -180,12 +148,36 @@ def tasks():
             else:
                 st.error("That's not quite right. Try again!")
 
-def store_page():
-    st.title("🎁 Rewards Store")
-    st.write("Use your earned UC to redeem exclusive rewards and discounts!")
+def market_page():
+    st.title("🛒 The Market")
+    st.write("Spend your UC on real-world items, shipped directly to you.")
     st.info(f"Your current balance: **{st.session_state.uc_balance} UC**")
     st.markdown("---")
 
+    for i, item in enumerate(MARKET_ITEMS):
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.image(item["image"], use_column_width=True)
+        with col2:
+            st.subheader(item["name"])
+            st.write(f"**Cost: {item['cost']} UC**")
+            st.write(item["description"])
+            if st.button(f"Buy Now", key=f"buy_{i}"):
+                if st.session_state.uc_balance >= item['cost']:
+                    st.session_state.uc_balance -= item['cost']
+                    st.success(f"Purchase successful! Your order for '{item['name']}' has been placed.")
+                    st.info("You will receive a confirmation email with shipping details shortly. (This is a simulation).")
+                    st.rerun()
+                else:
+                    st.error("You do not have enough UC to buy this item.")
+        st.markdown("---")
+
+def rewards_hub_page():
+    st.title("🎁 Rewards Hub")
+    st.write("Use your earned UC to redeem exclusive discounts and special offers from our partners.")
+    st.info(f"Your current balance: **{st.session_state.uc_balance} UC**")
+    st.markdown("---")
+    
     for i, item in enumerate(REWARDS_BANK):
         col1, col2 = st.columns([1, 2])
         with col1:
@@ -214,7 +206,10 @@ def profile():
     st.title("Your Profile & Verification")
     st.write("Upload your ID and manage your personal information.")
     st.subheader("Verification Status: Not Verified")
-    # ... rest of profile code ...
+    uploaded_id = st.file_uploader("Upload your ID")
+    if uploaded_id:
+        st.success("ID uploaded successfully!")
+    st.text_input("Bank Card Number", placeholder="**** **** **** 1234")
 
 # --- MAIN APP LOGIC ---
 if not st.session_state.logged_in:
@@ -227,9 +222,9 @@ else:
     st.sidebar.markdown("---")
     page_options = {
         "Dashboard": dashboard,
-        "Groups": groups,
         "Tasks": tasks,
-        "Store": store_page,
+        "Market": market_page,
+        "Rewards Hub": rewards_hub_page,
         "Wallet": wallet,
         "Profile & Verification": profile
     }
@@ -238,5 +233,6 @@ else:
         st.session_state.logged_in = False
         st.session_state.page = 'login'
         st.rerun()
+    
     page_to_display = page_options[selection]
     page_to_display()
